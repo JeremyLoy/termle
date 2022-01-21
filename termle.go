@@ -23,9 +23,13 @@ var (
 	dayFlag    = flag.Int("day", currentDay(), "select a specific wordle by day")
 	randomFlag = flag.Bool("random", false, "pick a random wordle")
 
-	est      = time.FixedZone("EST", -5*60*60)
-	firstDay = time.Date(2021, time.June, 19, 0, 0, 0, 0, est)
-	valid    = regexp.MustCompile(`^[A-Za-z]{5}$`)
+	// cannot simply use time.Local here
+	// if time.Now() is in a different stage of daylight savings time than the first day,
+	// calculating days since the first wordle will be off by one hour because the calculation is too precise
+	// we really just want calendar days since the first wordle
+	zone, zoneOffset = time.Now().Zone()
+	firstDay         = time.Date(2021, time.June, 19, 0, 0, 0, 0, time.FixedZone(zone, zoneOffset))
+	valid            = regexp.MustCompile(`^[A-Za-z]{5}$`)
 )
 
 func main() {
@@ -147,6 +151,7 @@ func guessesSet() map[string]struct{} {
 	if err != nil {
 		panic(err)
 	}
+	defer guessesFile.Close()
 	validGuesses := make(map[string]struct{})
 	guessesReader := bufio.NewScanner(guessesFile)
 
@@ -164,6 +169,7 @@ func answerForDay(day int) string {
 	if err != nil {
 		panic(err)
 	}
+	defer answersFile.Close()
 	seeker := answersFile.(io.ReadSeeker)
 	_, err = seeker.Seek(int64(day*7), io.SeekStart)
 	if err != nil {
@@ -178,7 +184,7 @@ func answerForDay(day int) string {
 }
 
 func currentDay() int {
-	return int(time.Now().Sub(firstDay).Hours() / 24)
+	return int(time.Since(firstDay).Hours() / 24)
 }
 
 func randomDay() int {
