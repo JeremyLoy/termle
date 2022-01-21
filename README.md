@@ -1,6 +1,8 @@
 # termle
 [Wordle](https://www.powerlanguage.co.uk/wordle/) in the Terminal. termle.
 
+![demo.png](./demo.png)
+
 ```shell
 go install github.com/JeremyLoy/termle@latest
 
