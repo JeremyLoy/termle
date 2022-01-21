@@ -23,7 +23,8 @@ var (
 	dayFlag    = flag.Int("day", currentDay(), "select a specific wordle by day")
 	randomFlag = flag.Bool("random", false, "pick a random wordle")
 
-	firstDay = time.Date(2021, time.June, 19, 0, 0, 0, 0, time.UTC)
+	est      = time.FixedZone("EST", -5*60*60)
+	firstDay = time.Date(2021, time.June, 19, 0, 0, 0, 0, est)
 	valid    = regexp.MustCompile(`^[A-Za-z]{5}$`)
 )
 
@@ -177,7 +178,7 @@ func answerForDay(day int) string {
 }
 
 func currentDay() int {
-	return int(time.Now().UTC().Sub(firstDay).Hours()/24) - 1
+	return int(time.Now().Sub(firstDay).Hours() / 24)
 }
 
 func randomDay() int {
