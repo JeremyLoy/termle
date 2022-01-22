@@ -9,28 +9,42 @@ import (
 	"math/rand"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
-const totalWordles = 2315
+const (
+	totalWordles = 2315
+	blackSquare  = `⬛`
+	yellowSquare = `🟨`
+	greenSquare  = `🟩`
+)
 
 var (
 	//go:embed guesses.txt
 	//go:embed answers.txt
 	files embed.FS
 
-	dayFlag    = flag.Int("day", currentDay(), "select a specific wordle by day")
+	dayFlag    = flag.Int("day", daysSinceFirstWordle(), "select a specific wordle by day")
 	randomFlag = flag.Bool("random", false, "pick a random wordle")
 
-	// cannot simply use time.Local here
-	// if time.Now() is in a different stage of daylight savings time than the first day,
-	// calculating days since the first wordle will be off by one hour because the calculation is too precise
-	// we really just want calendar days since the first wordle
-	zone, zoneOffset = time.Now().Zone()
-	firstDay         = time.Date(2021, time.June, 19, 0, 0, 0, 0, time.FixedZone(zone, zoneOffset))
-	valid            = regexp.MustCompile(`^[A-Za-z]{5}$`)
+	// UTC to avoid DST
+	firstDay = time.Date(2021, time.June, 19, 0, 0, 0, 0, time.UTC)
+	valid    = regexp.MustCompile(`^[A-Za-z]{5}$`)
 )
+
+type game struct {
+	day            int
+	currentTurn    int
+	turnsRemaining int
+	complete       bool
+	won            bool
+	answer         string
+	validGuesses   map[string]struct{}
+	public         [][]string
+	private        [][]string
+}
 
 func main() {
 	flag.Parse()
@@ -42,41 +56,45 @@ func main() {
 		day = *dayFlag
 	}
 
-	answer := answerForDay(day)
-	validGuesses := guessesSet()
-	b := newBoard()
-	currentTurn := 0
-	turnsRemaining := 6
-
+	g := newGame(day)
 	s := bufio.NewScanner(os.Stdin)
 
-	printTurn(b)
-	for s.Scan() {
+	g.printTurn()
+	for !g.complete && s.Scan() {
 		guess := strings.ToUpper(strings.TrimSpace(s.Text()))
 		if !valid.MatchString(guess) {
-			printTurnWithError(b, "Please enter a 5 letter word")
+			g.printTurnWithError("Please enter a 5 letter word")
 			continue
 		}
-		if _, ok := validGuesses[guess]; !ok {
-			printTurnWithError(b, "Not in word list")
+		if _, ok := g.validGuesses[guess]; !ok {
+			g.printTurnWithError("Not in word list")
 			continue
 		}
-		b.addGuess(currentTurn, guess, answer)
-		printTurn(b)
-		if guess == answer {
-			fmt.Print("you won!")
-			return
-		}
-		turnsRemaining--
-		currentTurn++
-		if turnsRemaining == 0 {
-			fmt.Println("you lose!")
-			fmt.Println("Answer was ", answer)
-			return
-		}
+		g.addGuess(guess)
+		g.printTurn()
 	}
 	if s.Err() != nil {
 		panic(s.Err())
+	}
+	g.printScore()
+}
+
+func (g *game) printScore() {
+	var turnS string
+	if g.won {
+		turnS = strconv.Itoa(g.currentTurn)
+		fmt.Println("you won!")
+	} else {
+		turnS = "X"
+		fmt.Println("you lose!")
+		fmt.Println("Answer was", g.answer)
+	}
+	fmt.Printf("Wordle %v %v/6\n\n", g.day, turnS)
+	for _, y := range g.private {
+		for _, x := range y {
+			fmt.Print(x)
+		}
+		fmt.Println()
 	}
 }
 
@@ -99,33 +117,56 @@ func prompt() {
 	fmt.Print(">")
 }
 
-type board [][]string
-
-func newBoard() board {
-	b := make(board, 6)
+func newGame(day int) *game {
+	b := make([][]string, 6)
 	for i := range b {
 		b[i] = make([]string, 5)
 		for j := range b[i] {
 			b[i][j] = black("_")
 		}
 	}
-	return b
-}
-
-func (b board) addGuess(turn int, guess, answer string) {
-	for i, c := range guess {
-		if c == rune(answer[i]) {
-			b[turn][i] = green(string(c))
-		} else if strings.ContainsRune(answer, c) {
-			b[turn][i] = yellow(string(c))
-		} else {
-			b[turn][i] = black(string(c))
-		}
+	p := make([][]string, 0, 6)
+	return &game{
+		day:            day,
+		currentTurn:    0,
+		turnsRemaining: 6,
+		complete:       false,
+		won:            false,
+		answer:         answerForDay(day),
+		validGuesses:   guessesSet(),
+		public:         b,
+		private:        p,
 	}
 }
 
-func (b board) print() {
-	for _, y := range b {
+func (g *game) addGuess(guess string) {
+	private := make([]string, 5)
+	for i, c := range guess {
+		if c == rune(g.answer[i]) {
+			g.public[g.currentTurn][i] = green(string(c))
+			private[i] = greenSquare
+		} else if strings.ContainsRune(g.answer, c) {
+			g.public[g.currentTurn][i] = yellow(string(c))
+			private[i] = yellowSquare
+		} else {
+			g.public[g.currentTurn][i] = black(string(c))
+			private[i] = blackSquare
+		}
+	}
+	g.private = append(g.private, private)
+	g.turnsRemaining--
+	g.currentTurn++
+	if guess == g.answer || g.turnsRemaining == 0 {
+		g.complete = true
+	}
+	if guess == g.answer {
+		g.won = true
+	}
+}
+
+func (g *game) print() {
+	fmt.Printf("Wordle %v\n", g.day)
+	for _, y := range g.public {
 		for _, x := range y {
 			fmt.Print(" " + x)
 		}
@@ -133,15 +174,15 @@ func (b board) print() {
 	}
 }
 
-func printTurn(b board) {
+func (g *game) printTurn() {
 	clearBoard()
-	b.print()
+	g.print()
 	prompt()
 }
 
-func printTurnWithError(b board, err string) {
+func (g *game) printTurnWithError(err string) {
 	clearBoard()
-	b.print()
+	g.print()
 	fmt.Println(err)
 	prompt()
 }
@@ -183,8 +224,10 @@ func answerForDay(day int) string {
 	return strings.ToUpper(string(answer))
 }
 
-func currentDay() int {
-	return int(time.Since(firstDay).Hours() / 24)
+func daysSinceFirstWordle() int {
+	year, month, day := time.Now().Date()
+	today := time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+	return int(today.Sub(firstDay).Hours() / 24)
 }
 
 func randomDay() int {
