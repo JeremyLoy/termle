@@ -5,7 +5,6 @@ import (
 	"embed"
 	"flag"
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"regexp"
@@ -229,17 +228,11 @@ func answerForDay(day int) string {
 		panic(err)
 	}
 	defer answersFile.Close()
-	seeker := answersFile.(io.ReadSeeker)
-	_, err = seeker.Seek(int64(day*7), io.SeekStart)
-	if err != nil {
-		panic(err)
+	s := bufio.NewScanner(answersFile)
+	for i := 0; i <= day; i++ {
+		s.Scan()
 	}
-	answer := make([]byte, 5)
-	_, err = seeker.Read(answer)
-	if err != nil {
-		panic(err)
-	}
-	return strings.ToUpper(string(answer))
+	return strings.ToUpper(s.Text())
 }
 
 func daysSinceFirstWordle() int {
