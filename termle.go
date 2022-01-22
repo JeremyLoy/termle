@@ -51,6 +51,7 @@ type cell struct {
 
 func main() {
 	flag.Parse()
+	rand.Seed(time.Now().Unix())
 
 	var day int
 	if *randomFlag {
