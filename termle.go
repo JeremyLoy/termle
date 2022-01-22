@@ -42,8 +42,12 @@ type game struct {
 	won            bool
 	answer         string
 	validGuesses   map[string]struct{}
-	public         [][]string
-	private        [][]string
+	board          [][]cell
+}
+
+type cell struct {
+	color  string
+	letter string
 }
 
 func main() {
@@ -76,10 +80,14 @@ func main() {
 	if s.Err() != nil {
 		panic(s.Err())
 	}
-	g.printScore()
+	// prevents answer from printing if user used a signal to end the program
+	// scanner.Err() returns nil if io.EOF
+	if g.complete {
+		g.printShareableScore()
+	}
 }
 
-func (g *game) printScore() {
+func (g *game) printShareableScore() {
 	var turnS string
 	if g.won {
 		turnS = strconv.Itoa(g.currentTurn)
@@ -90,9 +98,9 @@ func (g *game) printScore() {
 		fmt.Println("Answer was", g.answer)
 	}
 	fmt.Printf("Wordle %v %v/6\n\n", g.day, turnS)
-	for _, y := range g.private {
-		for _, x := range y {
-			fmt.Print(x)
+	for i := 0; i < g.currentTurn; i++ {
+		for _, x := range g.board[i] {
+			fmt.Print(x.color)
 		}
 		fmt.Println()
 	}
@@ -118,14 +126,16 @@ func prompt() {
 }
 
 func newGame(day int) *game {
-	b := make([][]string, 6)
+	b := make([][]cell, 6)
 	for i := range b {
-		b[i] = make([]string, 5)
+		b[i] = make([]cell, 5)
 		for j := range b[i] {
-			b[i][j] = black("_")
+			b[i][j] = cell{
+				color:  blackSquare,
+				letter: "_",
+			}
 		}
 	}
-	p := make([][]string, 0, 6)
 	return &game{
 		day:            day,
 		currentTurn:    0,
@@ -134,26 +144,25 @@ func newGame(day int) *game {
 		won:            false,
 		answer:         answerForDay(day),
 		validGuesses:   guessesSet(),
-		public:         b,
-		private:        p,
+		board:          b,
 	}
 }
 
 func (g *game) addGuess(guess string) {
-	private := make([]string, 5)
 	for i, c := range guess {
+		var color string
 		if c == rune(g.answer[i]) {
-			g.public[g.currentTurn][i] = green(string(c))
-			private[i] = greenSquare
+			color = greenSquare
 		} else if strings.ContainsRune(g.answer, c) {
-			g.public[g.currentTurn][i] = yellow(string(c))
-			private[i] = yellowSquare
+			color = yellowSquare
 		} else {
-			g.public[g.currentTurn][i] = black(string(c))
-			private[i] = blackSquare
+			color = blackSquare
+		}
+		g.board[g.currentTurn][i] = cell{
+			color:  color,
+			letter: string(c),
 		}
 	}
-	g.private = append(g.private, private)
 	g.turnsRemaining--
 	g.currentTurn++
 	if guess == g.answer || g.turnsRemaining == 0 {
@@ -166,9 +175,18 @@ func (g *game) addGuess(guess string) {
 
 func (g *game) print() {
 	fmt.Printf("Wordle %v\n", g.day)
-	for _, y := range g.public {
+	for _, y := range g.board {
 		for _, x := range y {
-			fmt.Print(" " + x)
+			l := x.letter
+			switch x.color {
+			case greenSquare:
+				l = green(l)
+			case yellowSquare:
+				l = yellow(l)
+			default:
+				l = black(l)
+			}
+			fmt.Print(" " + l)
 		}
 		fmt.Println()
 	}
