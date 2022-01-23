@@ -149,18 +149,29 @@ func newGame(day int) *game {
 }
 
 func (g *game) addGuess(guess string) {
-	for i, c := range guess {
-		var color string
-		if c == rune(g.answer[i]) {
-			color = greenSquare
-		} else if strings.ContainsRune(g.answer, c) {
-			color = yellowSquare
-		} else {
-			color = blackSquare
+	// A cell is green if the letters by index match.
+	// A cell is yellow if
+	//   the cell is not green
+	//   the letter exists somewhere in the word
+	//   the sum of green cells and yellow cells for the letter is less than the frequency of the letter
+	// Otherwise, the cell is black.
+	freq := make(map[rune]int)
+	for _, r := range g.answer {
+		freq[r]++
+	}
+	for i, r := range guess {
+		if rune(g.answer[i]) == r {
+			freq[r]--
+			g.board[g.currentTurn][i].color = greenSquare
 		}
-		g.board[g.currentTurn][i] = cell{
-			color:  color,
-			letter: string(c),
+		g.board[g.currentTurn][i].letter = string(r)
+	}
+	for i, r := range guess {
+		// not green, it exists somewhere, and there is room left to color
+		if rune(g.answer[i]) != r && strings.ContainsRune(g.answer, r) && freq[r] > 0 {
+			freq[r]--
+			g.board[g.currentTurn][i].color = yellowSquare
+			g.board[g.currentTurn][i].letter = string(r)
 		}
 	}
 	g.turnsRemaining--
