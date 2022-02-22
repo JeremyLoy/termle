@@ -9,4 +9,5 @@ go install github.com/JeremyLoy/termle@latest
 termle # plays current day
 termle -random # plays a random day
 termle -day 215 # play a day by number
+termle -hard # play in hard mode (any revealed hints must be used in subsequent guesses)
 ```
