@@ -182,7 +182,7 @@ func (g *game) checkHints(guess string) error {
 	var emptyRune rune
 	for i, greenHint := range g.hints.green {
 		if greenHint != emptyRune && greenHint != rune(guess[i]) {
-			return fmt.Errorf("position %d must contain \"%s\"", i, string(greenHint))
+			return fmt.Errorf("position %d must contain \"%s\"", i+1, string(greenHint))
 		}
 	}
 
