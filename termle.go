@@ -140,7 +140,7 @@ func prompt() {
 	fmt.Print(">")
 }
 
-func newGame(day int, hardmode bool) *game {
+func newGame(day int, hardMode bool) *game {
 	b := make([][]cell, 6)
 	for i := range b {
 		b[i] = make([]cell, 5)
@@ -157,7 +157,7 @@ func newGame(day int, hardmode bool) *game {
 		turnsRemaining: 6,
 		complete:       false,
 		won:            false,
-		hardMode:       hardmode,
+		hardMode:       hardMode,
 		hints: hints{
 			yellow: make(map[rune]bool),
 			green:  [5]rune{},
