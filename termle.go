@@ -27,11 +27,17 @@ var (
 
 	dayFlag    = flag.Int("day", daysSinceFirstWordle(), "select a specific wordle by day")
 	randomFlag = flag.Bool("random", false, "pick a random wordle")
+	hardFlag   = flag.Bool("hard", false, "play in hard mode (any revealed hints must be used in subsequent guesses)")
 
 	// UTC to avoid DST
 	firstDay = time.Date(2021, time.June, 19, 0, 0, 0, 0, time.UTC)
 	valid    = regexp.MustCompile(`^[A-Za-z]{5}$`)
 )
+
+type hints struct {
+	yellow map[rune]bool
+	green  [5]rune
+}
 
 type game struct {
 	day            int
@@ -41,6 +47,8 @@ type game struct {
 	won            bool
 	answer         string
 	validGuesses   map[string]struct{}
+	hardMode       bool
+	hints          hints
 	board          [][]cell
 }
 
@@ -60,7 +68,7 @@ func main() {
 		day = *dayFlag
 	}
 
-	g := newGame(day)
+	g := newGame(day, *hardFlag)
 	s := bufio.NewScanner(os.Stdin)
 
 	g.printTurn()
@@ -73,6 +81,13 @@ func main() {
 		if _, ok := g.validGuesses[guess]; !ok {
 			g.printTurnWithError("Not in word list")
 			continue
+		}
+		if g.hardMode {
+			err := g.checkHints(guess)
+			if err != nil {
+				g.printTurnWithError(fmt.Sprintf("Hard Mode: %s", err.Error()))
+				continue
+			}
 		}
 		g.addGuess(guess)
 		g.printTurn()
@@ -125,7 +140,7 @@ func prompt() {
 	fmt.Print(">")
 }
 
-func newGame(day int) *game {
+func newGame(day int, hardmode bool) *game {
 	b := make([][]cell, 6)
 	for i := range b {
 		b[i] = make([]cell, 5)
@@ -142,10 +157,36 @@ func newGame(day int) *game {
 		turnsRemaining: 6,
 		complete:       false,
 		won:            false,
+		hardMode:       hardmode,
+		hints: hints{
+			yellow: make(map[rune]bool),
+			green:  [5]rune{},
+		},
 		answer:         answerForDay(day),
 		validGuesses:   guessesSet(),
 		board:          b,
 	}
+}
+
+func (g *game) checkHints(guess string) error {
+	fmt.Printf("Checking yellows %v\n", g.hints.yellow)
+
+	// yellow letters must be present
+	for letter := range g.hints.yellow {
+		if !strings.Contains(guess, string(letter)) {
+			return fmt.Errorf("guess must contain \"%s\"", string(letter))
+		}
+	}
+
+	// green letters must be used in the correct places
+	var emptyRune rune
+	for i, greenHint := range g.hints.green {
+		if greenHint != emptyRune && greenHint != rune(guess[i]) {
+			return fmt.Errorf("position %d must contain \"%s\"", i, string(greenHint))
+		}
+	}
+
+	return nil
 }
 
 func (g *game) addGuess(guess string) {
@@ -163,6 +204,7 @@ func (g *game) addGuess(guess string) {
 		if rune(g.answer[i]) == r {
 			freq[r]--
 			g.board[g.currentTurn][i].color = greenSquare
+			g.hints.green[i] = r
 		}
 		g.board[g.currentTurn][i].letter = string(r)
 	}
@@ -172,6 +214,7 @@ func (g *game) addGuess(guess string) {
 			freq[r]--
 			g.board[g.currentTurn][i].color = yellowSquare
 			g.board[g.currentTurn][i].letter = string(r)
+			g.hints.yellow[r] = true
 		}
 	}
 	g.turnsRemaining--
