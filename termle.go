@@ -54,36 +54,52 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	var day int
-	if *randomFlag {
-		day = randomDay()
-	} else {
-		day = *dayFlag
-	}
+	playing := true
+	day = *dayFlag
 
-	g := newGame(day)
-	s := bufio.NewScanner(os.Stdin)
+	for playing {
+		if *randomFlag {
+			day = randomDay()
+		}
 
-	g.printTurn()
-	for !g.complete && s.Scan() {
-		guess := strings.ToUpper(strings.TrimSpace(s.Text()))
-		if !valid.MatchString(guess) {
-			g.printTurnWithError("Please enter a 5 letter word")
-			continue
-		}
-		if _, ok := g.validGuesses[guess]; !ok {
-			g.printTurnWithError("Not in word list")
-			continue
-		}
-		g.addGuess(guess)
+		g := newGame(day)
+		s := bufio.NewScanner(os.Stdin)
+
 		g.printTurn()
-	}
-	if s.Err() != nil {
-		panic(s.Err())
-	}
-	// prevents answer from printing if user used a signal to end the program
-	// scanner.Err() returns nil if io.EOF
-	if g.complete {
-		g.printShareableScore()
+		for !g.complete && s.Scan() {
+			guess := strings.ToUpper(strings.TrimSpace(s.Text()))
+			if !valid.MatchString(guess) {
+				g.printTurnWithError("Please enter a 5 letter word")
+				continue
+			}
+			if _, ok := g.validGuesses[guess]; !ok {
+				g.printTurnWithError("Not in word list")
+				continue
+			}
+			g.addGuess(guess)
+			g.printTurn()
+		}
+		if s.Err() != nil {
+			panic(s.Err())
+		}
+		// prevents answer from printing if user used a signal to end the program
+		// scanner.Err() returns nil if io.EOF
+		if g.complete {
+			g.printShareableScore()
+		}
+
+		if *randomFlag {
+			fmt.Println()
+			fmt.Print("Continue Playing?(y/n/(default: n)>")
+			s.Scan()
+			if strings.TrimSpace(s.Text()) == "y" {
+				continue
+			} else {
+				playing = false
+			}
+		} else {
+			playing = false
+		}
 	}
 }
 
